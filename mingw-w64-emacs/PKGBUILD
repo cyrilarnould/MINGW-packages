@@ -70,7 +70,7 @@ build() {
   # Required for nanosleep with clang
   export LDFLAGS="${LDFLAGS} -lpthread"
   # -D_FORTIFY_SOURCE breaks build
-  CFLAGS=${CFLAGS//"-Wp,-D_FORTIFY_SOURCE=2"}
+  # CFLAGS=${CFLAGS//"-Wp,-D_FORTIFY_SOURCE=2"}
   # -foptimize-sibling-calls breaks native compilation (GCC 13.1)
   CFLAGS+=" -fno-optimize-sibling-calls"
 
@@ -86,6 +86,10 @@ build() {
   # --without-compress-install is needed because we don't have gzip in
   # the mingw binaries and it is also required by native compilation.
 
+  make
+  cd src
+  make sysdep.o -W ../../${_realname}-${pkgver}/src/sysdep.c CFLAGS='${CFLAGS//"-Wp,-D_FORTIFY_SOURCE=2"}'
+  cd ..
   make
 }
 
