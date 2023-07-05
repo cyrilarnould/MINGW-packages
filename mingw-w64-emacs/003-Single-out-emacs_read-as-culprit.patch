@@ -1,0 +1,254 @@
+From 67522e3f7728b7d6c833f813f6d8c8390e3f0e3e Mon Sep 17 00:00:00 2001
+From: Cyril Arnould <cyril.arnould@outlook.com>
+Date: Wed, 5 Jul 2023 19:08:09 +0200
+Subject: [PATCH] Single out emacs_read as culprit
+
+Compiling everything but sysdep1.c with -D_FORTIFY_SOURCE=2 results in
+a working binary
+---
+ src/Makefile.in |   2 +-
+ src/sysdep.c    |  41 ------------
+ src/sysdep1.c   | 166 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 167 insertions(+), 42 deletions(-)
+ create mode 100644 src/sysdep1.c
+
+diff --git a/src/Makefile.in b/src/Makefile.in
+index 29e1513ab5f..3bd17b8f6b5 100644
+--- a/src/Makefile.in
++++ b/src/Makefile.in
+@@ -394,7 +394,7 @@ .m.o:
+ base_obj = dispnew.o frame.o scroll.o xdisp.o menu.o $(XMENU_OBJ) window.o \
+ 	charset.o coding.o category.o ccl.o character.o chartab.o bidi.o \
+ 	$(CM_OBJ) term.o terminal.o xfaces.o $(XOBJ) $(GTK_OBJ) $(DBUS_OBJ) \
+-	emacs.o keyboard.o macros.o keymap.o sysdep.o \
++	emacs.o keyboard.o macros.o keymap.o sysdep.o sysdep1.o \
+ 	bignum.o buffer.o filelock.o insdel.o marker.o \
+ 	minibuf.o fileio.o dired.o \
+ 	cmds.o casetab.o casefiddle.o indent.o search.o regex-emacs.o undo.o \
+diff --git a/src/sysdep.c b/src/sysdep.c
+index 72be25f6610..ad344ef44f0 100644
+--- a/src/sysdep.c
++++ b/src/sysdep.c
+@@ -2474,47 +2474,6 @@ verify (MAX_RW_COUNT <= INT_MAX);
+ verify (MAX_RW_COUNT <= UINT_MAX);
+ #endif
+ 
+-/* Read from FD to a buffer BUF with size NBYTE.
+-   If interrupted, process any quits and pending signals immediately
+-   if INTERRUPTIBLE, and then retry the read unless quitting.
+-   Return the number of bytes read, which might be less than NBYTE.
+-   On error, set errno to a value other than EINTR, and return -1.  */
+-static ptrdiff_t
+-emacs_intr_read (int fd, void *buf, ptrdiff_t nbyte, bool interruptible)
+-{
+-  /* No caller should ever pass a too-large size to emacs_read.  */
+-  eassert (nbyte <= MAX_RW_COUNT);
+-
+-  ssize_t result;
+-
+-  do
+-    {
+-      if (interruptible)
+-	maybe_quit ();
+-      result = read (fd, buf, nbyte);
+-    }
+-  while (result < 0 && errno == EINTR);
+-
+-  return result;
+-}
+-
+-/* Read from FD to a buffer BUF with size NBYTE.
+-   If interrupted, retry the read.  Return the number of bytes read,
+-   which might be less than NBYTE.  On error, set errno to a value
+-   other than EINTR, and return -1.  */
+-ptrdiff_t
+-emacs_read (int fd, void *buf, ptrdiff_t nbyte)
+-{
+-  return emacs_intr_read (fd, buf, nbyte, false);
+-}
+-
+-/* Like emacs_read, but also process quits and pending signals.  */
+-ptrdiff_t
+-emacs_read_quit (int fd, void *buf, ptrdiff_t nbyte)
+-{
+-  return emacs_intr_read (fd, buf, nbyte, true);
+-}
+-
+ /* Write to FILEDES from a buffer BUF with size NBYTE, retrying if
+    interrupted or if a partial write occurs.  Process any quits
+    immediately if INTERRUPTIBLE is positive, and process any pending
+diff --git a/src/sysdep1.c b/src/sysdep1.c
+new file mode 100644
+index 00000000000..d39692fd577
+--- /dev/null
++++ b/src/sysdep1.c
+@@ -0,0 +1,166 @@
++/* Interfaces to system-dependent kernel and library entries.
++   Copyright (C) 1985-1988, 1993-1995, 1999-2022 Free Software
++   Foundation, Inc.
++
++This file is part of GNU Emacs.
++
++GNU Emacs is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or (at
++your option) any later version.
++
++GNU Emacs is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
++
++#include <config.h>
++
++#include <execinfo.h>
++#include "sysstdio.h"
++#ifdef HAVE_PWD_H
++#include <pwd.h>
++#include <grp.h>
++#endif /* HAVE_PWD_H */
++#include <limits.h>
++#include <stdlib.h>
++#include <sys/random.h>
++#include <unistd.h>
++
++#include <c-ctype.h>
++#include <close-stream.h>
++#include <pathmax.h>
++#include <utimens.h>
++
++#include "lisp.h"
++#include "sheap.h"
++#include "sysselect.h"
++#include "blockinput.h"
++
++#ifdef HAVE_LINUX_FS_H
++# include <linux/fs.h>
++# include <sys/syscall.h>
++#endif
++
++#ifdef CYGWIN
++# include <cygwin/fs.h>
++#endif
++
++#if defined DARWIN_OS || defined __FreeBSD__ || defined __OpenBSD__
++# include <sys/sysctl.h>
++#endif
++
++#if defined __OpenBSD__
++# include <sys/proc.h>
++#endif
++
++#ifdef DARWIN_OS
++# include <libproc.h>
++#endif
++
++#ifdef __FreeBSD__
++/* Sparc/ARM machine/frame.h has 'struct frame' which conflicts with Emacs's
++   'struct frame', so rename it.  */
++# define frame freebsd_frame
++# include <sys/user.h>
++# undef frame
++
++# include <math.h>
++#endif
++
++#ifdef HAVE_SOCKETS
++#include <sys/socket.h>
++#include <netdb.h>
++#endif /* HAVE_SOCKETS */
++
++#ifdef WINDOWSNT
++#define read sys_read
++#define write sys_write
++#ifndef STDERR_FILENO
++#define STDERR_FILENO fileno(GetStdHandle(STD_ERROR_HANDLE))
++#endif
++#include "w32.h"
++#endif /* WINDOWSNT */
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <errno.h>
++
++/* Get SI_SRPC_DOMAIN, if it is available.  */
++#ifdef HAVE_SYS_SYSTEMINFO_H
++#include <sys/systeminfo.h>
++#endif
++
++#ifdef MSDOS	/* Demacs 1.1.2 91/10/20 Manabu Higashida, MW Aug 1993 */
++#include "msdos.h"
++#endif
++
++#include <sys/param.h>
++#include <sys/file.h>
++#include <fcntl.h>
++
++#include "syssignal.h"
++#include "systime.h"
++#include "systty.h"
++#include "syswait.h"
++
++#ifdef HAVE_SYS_RESOURCE_H
++# include <sys/resource.h>
++#endif
++
++#ifdef HAVE_SYS_UTSNAME_H
++# include <sys/utsname.h>
++# include <memory.h>
++#endif
++
++#include "keyboard.h"
++#include "frame.h"
++#include "termhooks.h"
++#include "termchar.h"
++#include "termopts.h"
++#include "process.h"
++#include "cm.h"
++
++#ifndef MAX_RW_COUNT
++#define MAX_RW_COUNT (INT_MAX >> 18 << 18)
++#endif
++
++/* Read from FD to a buffer BUF with size NBYTE.
++   If interrupted, process any quits and pending signals immediately
++   if INTERRUPTIBLE, and then retry the read unless quitting.
++   Return the number of bytes read, which might be less than NBYTE.
++   On error, set errno to a value other than EINTR, and return -1.  */
++static ptrdiff_t
++emacs_intr_read (int fd, void *buf, ptrdiff_t nbyte, bool interruptible)
++{
++  /* No caller should ever pass a too-large size to emacs_read.  */
++  eassert (nbyte <= MAX_RW_COUNT);
++
++  ssize_t result;
++
++  do
++    {
++      if (interruptible)
++	maybe_quit ();
++      result = read (fd, buf, nbyte);
++    }
++  while (result < 0 && errno == EINTR);
++
++  return result;
++}
++
++ptrdiff_t
++emacs_read (int fd, void *buf, ptrdiff_t nbyte)
++{
++  return emacs_intr_read (fd, buf, nbyte, false);
++}
++
++/* Like emacs_read, but also process quits and pending signals.  */
++ptrdiff_t
++emacs_read_quit (int fd, void *buf, ptrdiff_t nbyte)
++{
++  return emacs_intr_read (fd, buf, nbyte, true);
++}
+-- 
+2.36.0.windows.1
+
