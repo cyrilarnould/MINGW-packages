@@ -28,7 +28,7 @@ index 9aedb368..a103c29d 100644
 
 --- a/gl/lib/Makefile.am
 +++ b/gl/lib/Makefile.am
-@@ -102,6 +102,7 @@
+@@ -103,6 +103,7 @@
  #  parse-datetime \
  #  pathmax \
  #  perror \
@@ -36,7 +36,7 @@ index 9aedb368..a103c29d 100644
  #  progname \
  #  quotearg \
  #  readlink \
-@@ -145,6 +146,7 @@
+@@ -146,6 +147,7 @@
  #  warnings \
  #  wchar \
  #  wcwidth \
@@ -44,7 +44,7 @@ index 9aedb368..a103c29d 100644
  #  xalloc \
  #  xalloc-die \
  #  xgetcwd \
-@@ -2269,6 +2271,42 @@
+@@ -2586,6 +2588,42 @@ endif
  
  ## end   gnulib module pipe-posix
  
@@ -87,9 +87,9 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module progname
  
  libgnulib_a_SOURCES += progname.h progname.c
-@@ -2461,6 +2499,14 @@
+@@ -2767,6 +2805,14 @@ EXTRA_DIST += savedir.h
  
- ## end   gnulib module scratch_buffer
+ ## end   gnulib module savedir
  
 +## begin gnulib module select
 +
@@ -102,9 +102,9 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module selinux-at
  
  libgnulib_a_SOURCES += selinux-at.h selinux-at.c
-@@ -2538,6 +2584,46 @@
+@@ -2853,6 +2899,46 @@ EXTRA_DIST += setlocale_null.h
  
- ## end   gnulib module setlocale-null
+ ## end   gnulib module setlocale-null-unlocked
  
 +## begin gnulib module signal-h
 +
@@ -149,7 +149,7 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module size_max
  
  libgnulib_a_SOURCES += size_max.h
-@@ -3369,6 +3455,38 @@
+@@ -3697,6 +3783,38 @@ EXTRA_libgnulib_a_SOURCES += strtoimax.c
  
  ## end   gnulib module strtoumax
  
@@ -190,11 +190,11 @@ index 9aedb368..a103c29d 100644
  BUILT_SOURCES += sys/socket.h
 --- a/gl/lib/poll.c
 +++ b/gl/lib/poll.c
-@@ -0,0 +1,633 @@
+@@ -0,0 +1,629 @@
 +/* Emulation for poll(2)
 +   Contributed by Paolo Bonzini.
 +
-+   Copyright 2001-2003, 2006-2022 Free Software Foundation, Inc.
++   Copyright 2001-2003, 2006-2024 Free Software Foundation, Inc.
 +
 +   This file is part of gnulib.
 +
@@ -210,11 +210,6 @@ index 9aedb368..a103c29d 100644
 +
 +   You should have received a copy of the GNU Lesser General Public License
 +   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
-+
-+/* Tell gcc not to warn about the (nfd < 0) tests, below.  */
-+#if (__GNUC__ == 4 && 3 <= __GNUC_MINOR__) || 4 < __GNUC__
-+# pragma GCC diagnostic ignored "-Wtype-limits"
-+#endif
 +
 +#include <config.h>
 +#include <alloca.h>
@@ -589,14 +584,15 @@ index 9aedb368..a103c29d 100644
 +  if (timeout == 0)
 +    {
 +      ptv = &tv;
-+      ptv->tv_sec = 0;
-+      ptv->tv_usec = 0;
++      tv = (struct timeval) {0};
 +    }
 +  else if (timeout > 0)
 +    {
 +      ptv = &tv;
-+      ptv->tv_sec = timeout / 1000;
-+      ptv->tv_usec = (timeout % 1000) * 1000;
++      tv = (struct timeval) {
++        .tv_sec = timeout / 1000,
++        .tv_usec = (timeout % 1000) * 1000
++      };
 +    }
 +  else if (timeout == INFTIM)
 +    /* wait forever */
@@ -826,11 +822,11 @@ index 9aedb368..a103c29d 100644
 +}
 --- a/gl/lib/poll.in.h
 +++ b/gl/lib/poll.in.h
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,130 @@
 +/* Header for poll(2) emulation
 +   Contributed by Paolo Bonzini.
 +
-+   Copyright 2001-2003, 2007, 2009-2022 Free Software Foundation, Inc.
++   Copyright 2001-2003, 2007, 2009-2024 Free Software Foundation, Inc.
 +
 +   This file is part of gnulib.
 +
@@ -861,6 +857,11 @@ index 9aedb368..a103c29d 100644
 +
 +#ifndef _@GUARD_PREFIX@_POLL_H
 +#define _@GUARD_PREFIX@_POLL_H
++
++/* This file uses GNULIB_POSIXCHECK, HAVE_RAW_DECL_*.  */
++#if !_GL_CONFIG_H_INCLUDED
++ #error "Please include config.h first."
++#endif
 +
 +/* On native Windows, get the 'struct pollfd' type and the POLL* macro
 +   definitions before we override them.  mingw defines them in <winsock2.h>
@@ -954,11 +955,11 @@ index 9aedb368..a103c29d 100644
 +#endif /* _@GUARD_PREFIX@_POLL_H */
 --- a/gl/lib/select.c
 +++ b/gl/lib/select.c
-@@ -0,0 +1,598 @@
+@@ -0,0 +1,601 @@
 +/* Emulation for select(2)
 +   Contributed by Paolo Bonzini.
 +
-+   Copyright 2008-2022 Free Software Foundation, Inc.
++   Copyright 2008-2024 Free Software Foundation, Inc.
 +
 +   This file is part of gnulib.
 +
@@ -1236,8 +1237,11 @@ index 9aedb368..a103c29d 100644
 +  int i, fd, rc;
 +  clock_t tend;
 +
-+  if (nfds > FD_SETSIZE)
-+    nfds = FD_SETSIZE;
++  if (nfds < 0 || nfds > FD_SETSIZE)
++    {
++      errno = EINVAL;
++      return -1;
++    }
 +
 +  if (!timeout)
 +    wait_timeout = INFINITE;
@@ -1555,10 +1559,10 @@ index 9aedb368..a103c29d 100644
 +#endif
 --- a/gl/lib/signal.in.h
 +++ b/gl/lib/signal.in.h
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,500 @@
 +/* A GNU-like <signal.h>.
 +
-+   Copyright (C) 2006-2022 Free Software Foundation, Inc.
++   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 +
 +   This file is free software: you can redistribute it and/or modify
 +   it under the terms of the GNU Lesser General Public License as
@@ -1613,13 +1617,26 @@ index 9aedb368..a103c29d 100644
 +#ifndef _@GUARD_PREFIX@_SIGNAL_H
 +#define _@GUARD_PREFIX@_SIGNAL_H
 +
-+/* Mac OS X 10.3, FreeBSD 6.4, OpenBSD 3.8, OSF/1 4.0, Solaris 2.6, Android,
++/* This file uses GNULIB_POSIXCHECK, HAVE_RAW_DECL_*.  */
++#if !_GL_CONFIG_H_INCLUDED
++ #error "Please include config.h first."
++#endif
++
++/* For testing the OpenBSD version.  */
++#if (@GNULIB_PTHREAD_SIGMASK@ || defined GNULIB_POSIXCHECK) \
++    && defined __OpenBSD__
++# include <sys/param.h>
++#endif
++
++/* Mac OS X 10.3, FreeBSD < 8.0, OpenBSD < 5.1, OSF/1 4.0, Solaris 2.6, Android,
 +   OS/2 kLIBC declare pthread_sigmask in <pthread.h>, not in <signal.h>.
 +   But avoid namespace pollution on glibc systems.*/
 +#if (@GNULIB_PTHREAD_SIGMASK@ || defined GNULIB_POSIXCHECK) \
 +    && ((defined __APPLE__ && defined __MACH__) \
-+        || defined __FreeBSD__ || defined __OpenBSD__ || defined __osf__ \
-+        || defined __sun || defined __ANDROID__ || defined __KLIBC__) \
++        || (defined __FreeBSD__ && __FreeBSD__ < 8) \
++        || (defined __OpenBSD__ && OpenBSD < 201205) \
++        || defined __osf__ || defined __sun || defined __ANDROID__ \
++        || defined __KLIBC__) \
 +    && ! defined __GLIBC__
 +# include <pthread.h>
 +#endif
@@ -2045,9 +2062,9 @@ index 9aedb368..a103c29d 100644
 +#endif
 --- a/gl/lib/sys_select.in.h
 +++ b/gl/lib/sys_select.in.h
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,348 @@
 +/* Substitute for <sys/select.h>.
-+   Copyright (C) 2007-2022 Free Software Foundation, Inc.
++   Copyright (C) 2007-2024 Free Software Foundation, Inc.
 +
 +   This file is free software: you can redistribute it and/or modify
 +   it under the terms of the GNU Lesser General Public License as
@@ -2066,6 +2083,13 @@ index 9aedb368..a103c29d 100644
 +@PRAGMA_SYSTEM_HEADER@
 +# endif
 +@PRAGMA_COLUMNS@
++
++/* This file uses #include_next of a system file that defines time_t.
++   For the 'year2038' module to work right, <config.h> needs to have been
++   included before.  */
++#if !_GL_CONFIG_H_INCLUDED
++ #error "Please include config.h first."
++#endif
 +
 +/* On OSF/1 and Solaris 2.6, <sys/types.h> and <sys/time.h>
 +   both include <sys/select.h>.
@@ -2119,6 +2143,11 @@ index 9aedb368..a103c29d 100644
 +
 +#ifndef _@GUARD_PREFIX@_SYS_SELECT_H
 +
++/* This file uses GNULIB_POSIXCHECK, HAVE_RAW_DECL_*.  */
++#if !_GL_CONFIG_H_INCLUDED
++ #error "Please include config.h first."
++#endif
++
 +/* On many platforms, <sys/select.h> assumes prior inclusion of
 +   <sys/types.h>.  Also, mingw defines sigset_t there, instead of
 +   in <signal.h> where it belongs.  */
@@ -2130,9 +2159,10 @@ index 9aedb368..a103c29d 100644
 +   of 'struct timeval', and no definition of this type.
 +   Also, Mac OS X, AIX, HP-UX, IRIX, Solaris, Interix declare select()
 +   in <sys/time.h>.
-+   But avoid namespace pollution on glibc systems and "unknown type
-+   name" problems on Cygwin.  */
-+# if !(defined __GLIBC__ || defined __CYGWIN__)
++   But avoid namespace pollution on glibc systems, a circular include
++   <sys/select.h> -> <sys/time.h> -> <sys/select.h> on FreeBSD 13.1, and
++   "unknown type name" problems on Cygwin.  */
++# if !(defined __GLIBC__ || defined __FreeBSD__ || defined __CYGWIN__)
 +#  include <sys/time.h>
 +# endif
 +
@@ -2335,7 +2365,9 @@ index 9aedb368..a103c29d 100644
 +                        struct timespec const *restrict,
 +                        const sigset_t *restrict));
 +# endif
++# if __GLIBC__ >= 2
 +_GL_CXXALIASWARN (pselect);
++# endif
 +#elif defined GNULIB_POSIXCHECK
 +# undef pselect
 +# if HAVE_RAW_DECL_PSELECT
@@ -2361,7 +2393,9 @@ index 9aedb368..a103c29d 100644
 +                  (int, fd_set *restrict, fd_set *restrict, fd_set *restrict,
 +                   timeval *restrict));
 +# endif
++# if __GLIBC__ >= 2
 +_GL_CXXALIASWARN (select);
++# endif
 +#elif @HAVE_WINSOCK2_H@
 +# undef select
 +# define select select_used_without_requesting_gnulib_module_select
@@ -2379,7 +2413,7 @@ index 9aedb368..a103c29d 100644
 +#endif /* OSF/1 */
 --- a/gl/m4/gnulib-cache.m4
 +++ b/gl/m4/gnulib-cache.m4
-@@ -107,6 +107,7 @@
+@@ -108,6 +108,7 @@
  #  parse-datetime \
  #  pathmax \
  #  perror \
@@ -2387,7 +2421,7 @@ index 9aedb368..a103c29d 100644
  #  progname \
  #  quotearg \
  #  readlink \
-@@ -150,6 +151,7 @@
+@@ -151,6 +152,7 @@
  #  warnings \
  #  wchar \
  #  wcwidth \
@@ -2395,7 +2429,7 @@ index 9aedb368..a103c29d 100644
  #  xalloc \
  #  xalloc-die \
  #  xgetcwd \
-@@ -232,6 +234,7 @@
+@@ -233,6 +235,7 @@ gl_MODULES([
    parse-datetime
    pathmax
    perror
@@ -2403,7 +2437,7 @@ index 9aedb368..a103c29d 100644
    progname
    quotearg
    readlink
-@@ -275,6 +278,7 @@
+@@ -276,6 +279,7 @@ gl_MODULES([
    warnings
    wchar
    wcwidth
@@ -2413,7 +2447,7 @@ index 9aedb368..a103c29d 100644
    xgetcwd
 --- a/gl/m4/gnulib-comp.m4
 +++ b/gl/m4/gnulib-comp.m4
-@@ -387,6 +387,10 @@
+@@ -448,6 +448,10 @@ AC_DEFUN([gl_EARLY],
    # Code from module perror-tests:
    # Code from module pipe-posix:
    # Code from module pipe-posix-tests:
@@ -2424,7 +2458,7 @@ index 9aedb368..a103c29d 100644
    # Code from module priv-set:
    # Code from module priv-set-tests:
    # Code from module progname:
-@@ -617,6 +621,8 @@
+@@ -739,6 +743,8 @@ AC_DEFUN([gl_EARLY],
    # Code from module windows-once:
    # Code from module windows-recmutex:
    # Code from module windows-rwlock:
@@ -2433,7 +2467,7 @@ index 9aedb368..a103c29d 100644
    # Code from module windows-thread:
    # Code from module windows-tls:
    # Code from module wmemchr:
-@@ -1208,6 +1214,16 @@
+@@ -1469,6 +1475,16 @@ AC_DEFUN([gl_INIT],
    gl_FUNC_PIPE
    gl_CONDITIONAL([GL_COND_OBJ_PIPE], [test $HAVE_PIPE = 0])
    gl_UNISTD_MODULE_INDICATOR([pipe])
@@ -2449,18 +2483,18 @@ index 9aedb368..a103c29d 100644
 +  AC_PROG_MKDIR_P
    AC_CHECK_DECLS([program_invocation_name], [], [], [#include <errno.h>])
    AC_CHECK_DECLS([program_invocation_short_name], [], [], [#include <errno.h>])
-   gl_QUOTE
-@@ -1277,6 +1293,9 @@
+   gl_FUNC_QSORT_R
+@@ -1546,6 +1562,9 @@ AC_DEFUN([gl_INIT],
+   gl_PREREQ_SAFE_READ
    gl_SAVE_CWD
    gl_SAVEDIR
-   AC_PROG_MKDIR_P
 +  gl_FUNC_SELECT
 +  gl_CONDITIONAL([GL_COND_OBJ_SELECT], [test $REPLACE_SELECT = 1])
 +  gl_SYS_SELECT_MODULE_INDICATOR([select])
    AC_CHECK_HEADERS([selinux/flask.h])
    gl_HEADERS_SELINUX_SELINUX_H
    gl_HEADERS_SELINUX_CONTEXT_H
-@@ -1297,6 +1316,9 @@
+@@ -1566,6 +1585,9 @@ AC_DEFUN([gl_INIT],
      gl_PREREQ_SETLOCALE_LOCK
    ])
    gl_LOCALE_MODULE_INDICATOR([setlocale_null])
@@ -2470,7 +2504,7 @@ index 9aedb368..a103c29d 100644
    gl_SIZE_MAX
    gl_FUNC_SNPRINTF
    gl_STDIO_MODULE_INDICATOR([snprintf])
-@@ -1460,6 +1482,9 @@
+@@ -1732,6 +1754,9 @@ AC_DEFUN([gl_INIT],
      gl_PREREQ_STRTOUMAX
    ])
    gl_INTTYPES_MODULE_INDICATOR([strtoumax])
@@ -2480,28 +2514,28 @@ index 9aedb368..a103c29d 100644
    gl_SYS_SOCKET_H
    gl_SYS_SOCKET_H_REQUIRE_DEFAULTS
    AC_PROG_MKDIR_P
-@@ -1591,6 +1616,12 @@
+@@ -1913,6 +1938,12 @@ AC_DEFUN([gl_INIT],
    AC_REQUIRE([AC_CANONICAL_HOST])
    gl_CONDITIONAL([GL_COND_OBJ_WINDOWS_RWLOCK],
-                  [case "$host_os" in mingw*) true;; *) false;; esac])
+                  [case "$host_os" in mingw* | windows*) true;; *) false;; esac])
 +  AC_REQUIRE([gl_WINDOWS_STAT_INODES])
 +  gl_SYS_STAT_H_REQUIRE_DEFAULTS
 +  AC_REQUIRE([AC_CANONICAL_HOST])
 +  case "$host_os" in
-+    mingw*) gl_MODULE_INDICATOR_INIT_VARIABLE([GNULIB_OVERRIDES_STRUCT_STAT], [1]) ;;
++    mingw* | windows*) gl_MODULE_INDICATOR_INIT_VARIABLE([GNULIB_OVERRIDES_STRUCT_STAT], [1]) ;;
 +  esac
    gl_FUNC_WMEMCHR
    gl_CONDITIONAL([GL_COND_OBJ_WMEMCHR], [test $HAVE_WMEMCHR = 0])
    gl_WCHAR_MODULE_INDICATOR([wmemchr])
-@@ -1801,6 +1832,7 @@
-   AC_PROG_MKDIR_P
+@@ -2204,6 +2235,7 @@ changequote([, ])dnl
    gt_LOCALE_FR
    gt_LOCALE_FR_UTF8
+   gl_MUSL_LIBC
 +  AC_CHECK_HEADERS_ONCE([unistd.h sys/wait.h])
    gl_PRIV_SET
-   gl_PTHREAD_H
-   gl_PTHREAD_H_REQUIRE_DEFAULTS
-@@ -1851,9 +1883,6 @@
+   gl_FUNC_PSELECT
+   gl_CONDITIONAL([GL_COND_OBJ_PSELECT],
+@@ -2273,9 +2305,6 @@ changequote([, ])dnl
      gl_PREREQ_SECURE_GETENV
    ])
    gl_STDLIB_MODULE_INDICATOR([secure_getenv])
@@ -2511,17 +2545,17 @@ index 9aedb368..a103c29d 100644
    AC_CHECK_HEADERS_ONCE([sys/wait.h])
    gl_FUNC_SETLOCALE
    gl_CONDITIONAL([GL_COND_OBJ_SETLOCALE], [test $REPLACE_SETLOCALE = 1])
-@@ -1875,9 +1904,6 @@
-     gl_PREREQ_SIGACTION
-   ])
-   gl_SIGNAL_MODULE_INDICATOR([sigaction])
+@@ -2291,9 +2320,6 @@ changequote([, ])dnl
+   gl_CONDITIONAL([GL_COND_OBJ_SETSOCKOPT],
+                  [test "$ac_cv_header_winsock2_h" = yes])
+   gl_SYS_SOCKET_MODULE_INDICATOR([setsockopt])
 -  gl_SIGNAL_H
 -  gl_SIGNAL_H_REQUIRE_DEFAULTS
 -  AC_PROG_MKDIR_P
-   gl_SIGNALBLOCKING
-   gl_CONDITIONAL([GL_COND_OBJ_SIGPROCMASK], [test $HAVE_POSIX_SIGNALBLOCKING = 0])
-   AM_COND_IF([GL_COND_OBJ_SIGPROCMASK], [
-@@ -1933,9 +1959,6 @@
+   gl_SIGNBIT
+   gl_CONDITIONAL([GL_COND_OBJ_SIGNBIT3], [test $REPLACE_SIGNBIT = 1])
+   gl_MATH_MODULE_INDICATOR([signbit])
+@@ -2355,9 +2381,6 @@ changequote([, ])dnl
    gl_SYS_RANDOM_H
    gl_SYS_RANDOM_H_REQUIRE_DEFAULTS
    AC_PROG_MKDIR_P
@@ -2531,7 +2565,7 @@ index 9aedb368..a103c29d 100644
    AC_CHECK_FUNCS_ONCE([shutdown])
    gl_FUNC_GEN_TEMPNAME
    gl_MODULE_INDICATOR([tempname])
-@@ -2372,6 +2395,8 @@
+@@ -2840,6 +2863,8 @@ AC_DEFUN([gl_FILE_LIST], [
    lib/perror.c
    lib/pipe-safer.c
    lib/pipe.c
@@ -2540,7 +2574,7 @@ index 9aedb368..a103c29d 100644
    lib/printf-args.c
    lib/printf-args.h
    lib/printf-parse.c
-@@ -2413,12 +2438,14 @@
+@@ -2884,6 +2909,7 @@ AC_DEFUN([gl_FILE_LIST], [
    lib/se-label.in.h
    lib/se-selinux.c
    lib/se-selinux.in.h
@@ -2548,14 +2582,15 @@ index 9aedb368..a103c29d 100644
    lib/selinux-at.c
    lib/selinux-at.h
    lib/setenv.c
-   lib/setlocale-lock.c
+@@ -2891,6 +2917,7 @@ AC_DEFUN([gl_FILE_LIST], [
+   lib/setlocale_null-unlocked.c
    lib/setlocale_null.c
    lib/setlocale_null.h
 +  lib/signal.in.h
    lib/size_max.h
    lib/snprintf.c
    lib/sockets.c
-@@ -2470,6 +2497,7 @@
+@@ -2941,6 +2968,7 @@ AC_DEFUN([gl_FILE_LIST], [
    lib/strtoull.c
    lib/strtoumax.c
    lib/sys-limits.h
@@ -2563,7 +2598,7 @@ index 9aedb368..a103c29d 100644
    lib/sys_socket.c
    lib/sys_socket.in.h
    lib/sys_stat.in.h
-@@ -2718,6 +2746,8 @@
+@@ -3243,6 +3271,8 @@ AC_DEFUN([gl_FILE_LIST], [
    m4/perror.m4
    m4/pid_t.m4
    m4/pipe.m4
@@ -2571,39 +2606,36 @@ index 9aedb368..a103c29d 100644
 +  m4/poll_h.m4
    m4/printf.m4
    m4/priv-set.m4
-   m4/pthread-thread.m4
-@@ -2837,6 +2867,7 @@
-   m4/wctomb.m4
+   m4/pselect.m4
+@@ -3374,6 +3404,7 @@ AC_DEFUN([gl_FILE_LIST], [
+   m4/wctype.m4
    m4/wctype_h.m4
    m4/wcwidth.m4
 +  m4/windows-stat-inodes.m4
    m4/wint_t.m4
    m4/wmemchr.m4
    m4/wmempcpy.m4
-@@ -3065,6 +3096,8 @@
+@@ -3699,6 +3730,8 @@ AC_DEFUN([gl_FILE_LIST], [
    tests/test-perror.sh
    tests/test-perror2.c
    tests/test-pipe.c
 +  tests/test-poll-h.c
 +  tests/test-poll.c
    tests/test-priv-set.c
+   tests/test-pselect.c
    tests/test-pthread-thread.c
-   tests/test-pthread.c
-@@ -3235,13 +3268,11 @@
+@@ -3915,10 +3948,8 @@ AC_DEFUN([gl_FILE_LIST], [
    tests=lib/sched.in.h
    tests=lib/sched_yield.c
    tests=lib/secure_getenv.c
 -  tests=lib/select.c
    tests=lib/setlocale.c
    tests=lib/setsockopt.c
-   tests=lib/sig-handler.c
-   tests=lib/sig-handler.h
-   tests=lib/sigaction.c
 -  tests=lib/signal.in.h
-   tests=lib/sigprocmask.c
-   tests=lib/sleep.c
-   tests=lib/socket.c
-@@ -3251,7 +3282,6 @@
+   tests=lib/signbitd.c
+   tests=lib/signbitf.c
+   tests=lib/signbitl.c
+@@ -3935,7 +3966,6 @@ AC_DEFUN([gl_FILE_LIST], [
    tests=lib/symlinkat.c
    tests=lib/sys_ioctl.in.h
    tests=lib/sys_random.in.h
@@ -2613,9 +2645,10 @@ index 9aedb368..a103c29d 100644
    tests=lib/thread-optim.h
 --- a/gl/m4/poll.m4
 +++ b/gl/m4/poll.m4
-@@ -0,0 +1,108 @@
-+# poll.m4 serial 20
-+dnl Copyright (c) 2003, 2005-2007, 2009-2022 Free Software Foundation, Inc.
+@@ -0,0 +1,112 @@
++# poll.m4
++# serial 22
++dnl Copyright (c) 2003, 2005-2007, 2009-2024 Free Software Foundation, Inc.
 +dnl This file is free software; the Free Software Foundation
 +dnl gives unlimited permission to copy and/or distribute it,
 +dnl with or without modifications, as long as this notice is preserved.
@@ -2631,7 +2664,7 @@ index 9aedb368..a103c29d 100644
 +  else
 +    AC_CHECK_FUNC([poll],
 +      [# Check whether poll() works on special files (like /dev/null) and
-+       # and ttys (like /dev/tty). On Mac OS X 10.4.0 and AIX 5.3, it doesn't.
++       # and ttys (like /dev/tty). On macOS 10.15 and AIX 5.3, it doesn't.
 +       AC_RUN_IFELSE([AC_LANG_SOURCE([[
 +#include <fcntl.h>
 +#include <poll.h>
@@ -2692,10 +2725,10 @@ index 9aedb368..a103c29d 100644
 +  fi
 +
 +  dnl Determine the needed libraries.
-+  LIB_POLL="$LIBSOCKET"
++  POLL_LIB="$LIBSOCKET"
 +  if test $HAVE_POLL = 0 || test $REPLACE_POLL = 1; then
 +    case "$host_os" in
-+      mingw*)
++      mingw* | windows*)
 +        dnl On the MSVC platform, the function MsgWaitForMultipleObjects
 +        dnl (used in lib/poll.c) requires linking with -luser32. On mingw,
 +        dnl it is implicit.
@@ -2710,10 +2743,13 @@ index 9aedb368..a103c29d 100644
 +  return 0;
 +}]])],
 +          [],
-+          [LIB_POLL="$LIB_POLL -luser32"])
++          [POLL_LIB="$POLL_LIB -luser32"])
 +        ;;
 +    esac
 +  fi
++  AC_SUBST([POLL_LIB])
++  dnl For backward compatibility.
++  LIB_POLL="$POLL_LIB"
 +  AC_SUBST([LIB_POLL])
 +])
 +
@@ -2724,9 +2760,10 @@ index 9aedb368..a103c29d 100644
 +])
 --- a/gl/m4/poll_h.m4
 +++ b/gl/m4/poll_h.m4
-@@ -0,0 +1,64 @@
-+# poll_h.m4 serial 6
-+dnl Copyright (C) 2010-2022 Free Software Foundation, Inc.
+@@ -0,0 +1,65 @@
++# poll_h.m4
++# serial 6
++dnl Copyright (C) 2010-2024 Free Software Foundation, Inc.
 +dnl This file is free software; the Free Software Foundation
 +dnl gives unlimited permission to copy and/or distribute it,
 +dnl with or without modifications, as long as this notice is preserved.
@@ -2791,9 +2828,10 @@ index 9aedb368..a103c29d 100644
 +])
 --- a/gl/m4/windows-stat-inodes.m4
 +++ b/gl/m4/windows-stat-inodes.m4
-@@ -0,0 +1,19 @@
-+# windows-stat-inodes.m4 serial 1
-+dnl Copyright (C) 2017-2022 Free Software Foundation, Inc.
+@@ -0,0 +1,20 @@
++# windows-stat-inodes.m4
++# serial 2
++dnl Copyright (C) 2017-2024 Free Software Foundation, Inc.
 +dnl This file is free software; the Free Software Foundation
 +dnl gives unlimited permission to copy and/or distribute it,
 +dnl with or without modifications, as long as this notice is preserved.
@@ -2807,13 +2845,13 @@ index 9aedb368..a103c29d 100644
 +[
 +  AC_REQUIRE([AC_CANONICAL_HOST])
 +  case "$host_os" in
-+    mingw*) WINDOWS_STAT_INODES=1 ;;
-+    *)      WINDOWS_STAT_INODES=0 ;;
++    mingw* | windows*) WINDOWS_STAT_INODES=1 ;;
++    *)                 WINDOWS_STAT_INODES=0 ;;
 +  esac
 +])
 --- a/gnulib-tests/Makefile.am
 +++ b/gnulib-tests/Makefile.am
-@@ -1429,6 +1429,23 @@
+@@ -1843,6 +1843,23 @@ EXTRA_DIST += test-pipe.c signature.h macros.h
  
  ## end   gnulib module pipe-posix-tests
  
@@ -2829,7 +2867,7 @@ index 9aedb368..a103c29d 100644
 +
 +TESTS += test-poll
 +check_PROGRAMS += test-poll
-+test_poll_LDADD = $(LDADD) $(LIB_POLL) @LIBSOCKET@ $(INET_PTON_LIB)
++test_poll_LDADD = $(LDADD) $(POLL_LIB) @LIBSOCKET@ $(INET_PTON_LIB)
 +EXTRA_DIST += test-poll.c signature.h macros.h
 +
 +## end   gnulib module poll-tests
@@ -2837,7 +2875,7 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module priv-set
  
  libtests_a_SOURCES += priv-set.c
-@@ -1792,14 +1809,6 @@
+@@ -2269,14 +2286,6 @@ endif
  
  ## end   gnulib module secure_getenv
  
@@ -2852,9 +2890,9 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module select-tests
  
  TESTS += test-select test-select-in.sh test-select-out.sh
-@@ -1898,46 +1907,6 @@
+@@ -2364,46 +2373,6 @@ EXTRA_DIST += test-setsockopt.c signature.h macros.h
  
- ## end   gnulib module sigaction-tests
+ ## end   gnulib module setsockopt-tests
  
 -## begin gnulib module signal-h
 -
@@ -2899,7 +2937,7 @@ index 9aedb368..a103c29d 100644
  ## begin gnulib module signal-h-tests
  
  TESTS += test-signal-h
-@@ -2335,38 +2304,6 @@
+@@ -2829,38 +2798,6 @@ EXTRA_DIST += test-sys_random.c
  
  ## end   gnulib module sys_random-tests
  
@@ -2942,7 +2980,7 @@ index 9aedb368..a103c29d 100644
 +++ b/gnulib-tests/test-poll-h.c
 @@ -0,0 +1,34 @@
 +/* Test of <poll.h> substitute.
-+   Copyright (C) 2010-2022 Free Software Foundation, Inc.
++   Copyright (C) 2010-2024 Free Software Foundation, Inc.
 +
 +   This program is free software: you can redistribute it and/or modify
 +   it under the terms of the GNU General Public License as published by
@@ -2977,9 +3015,9 @@ index 9aedb368..a103c29d 100644
 +}
 --- a/gnulib-tests/test-poll.c
 +++ b/gnulib-tests/test-poll.c
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,394 @@
 +/* Test of poll() function.
-+   Copyright (C) 2008-2022 Free Software Foundation, Inc.
++   Copyright (C) 2008-2024 Free Software Foundation, Inc.
 +
 +   This program is free software; you can redistribute it and/or modify
 +   it under the terms of the GNU General Public License as published by
@@ -3011,7 +3049,6 @@ index 9aedb368..a103c29d 100644
 +#include <arpa/inet.h>
 +#include <fcntl.h>
 +#include <stdlib.h>
-+#include <stdbool.h>
 +#include <sys/ioctl.h>
 +#include <errno.h>
 +
@@ -3343,7 +3380,7 @@ index 9aedb368..a103c29d 100644
 +  test_pair (fd[0], fd[1]);
 +  close (fd[0]);
 +  int revents = poll1_wait (fd[1], POLLIN | POLLOUT);
-+#if !defined _AIX
++#if !(defined _AIX || defined __CYGWIN__ || (defined _WIN32 && !defined __CYGWIN__))
 +  if ((revents & (POLLHUP | POLLERR)) == 0)
 +    failed ("expecting POLLHUP after shutdown");
 +#else
@@ -3371,6 +3408,5 @@ index 9aedb368..a103c29d 100644
 +  result += test (test_accept_first, "General socket test with fork");
 +  result += test (test_pipe, "Pipe test");
 +
-+  exit (result);
++  return (result ? result : test_exit_status);
 +}
-
